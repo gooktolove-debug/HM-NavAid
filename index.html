@@ -45,7 +45,7 @@
 <div class="pin-pick-banner" id="pinPickBanner"><span>Pin on map mode: tap/click the map to set Lat/Long.</span><button type="button" id="pinPickCancelBtn">Cancel</button></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script>
 const EMBEDDED_DATA=[];const HEADERS=["Name", "Owner", "Class", "Category", "Type", "Sub type", "Lat (Decimal Degrees)", "Long (Decimal Degrees)", "Maintenance period", "Last edited", "Light Character", "Note", "Light type", "Reflector", "Transponder", "Top mark", "Top chain length", "Top chain size", "Shackle", "Rope length", "Rope size", "Chain length", "chain size", "Anchor Weight"];const CONFIG={SUPABASE_URL:'https://wgwlnutnstrfuiiunlcu.supabase.co',SUPABASE_ANON_KEY:'sb_publishable_iC7kbinoy61_5eQCnrV25Q_OioA7Y1x',SUPABASE_TABLE:'hm_navaids',SUPABASE_LOGS_TABLE:'hm_navaid_logs',SUPABASE_PHOTOS_TABLE:'hm_navaid_photos',SUPABASE_BUCKET:'hm-navaid-images'};const sbClient=supabase.createClient(CONFIG.SUPABASE_URL,CONFIG.SUPABASE_ANON_KEY);const OUTAGE_KEY='hm_navaid_manual_outages_v1',RI_KEY='hm_navaid_repair_inspection_v1',EDIT_KEY='hm_navaid_last_edited_overrides_v1',DETAIL_EDIT_KEY='hm_navaid_detail_edits_v1';let manualOutages=new Set(JSON.parse(localStorage.getItem(OUTAGE_KEY)||'[]'));let riStore=JSON.parse(localStorage.getItem(RI_KEY)||'{}');let editOverrides=JSON.parse(localStorage.getItem(EDIT_KEY)||'{}');let detailEdits=JSON.parse(localStorage.getItem(DETAIL_EDIT_KEY)||'{}');const NOTE_LOG_TYPE='note';let noteStore={};let allNotesCache=[];const state={records:[],filtered:[],scope:'all',owner:'all',classType:'all',outageOnly:false,overdueOnly:false,selectedId:null,markers:{},layerGroup:null,userLocation:null,forwardPlanningDate:null};
-let riEditing={id:null,type:null};let editMode="edit";let pinPickMode=false;let pinPickSavedValues=null;
+let riEditing={id:null,type:null};let editMode="edit";let editAccessGranted=false;let pinPickMode=false;let pinPickSavedValues=null;
 const DB_TO_APP={name:'Name',owner:'Owner',asset_class:'Class',category:'Category',type:'Type',sub_type:'Sub type',lat:'Lat (Decimal Degrees)',lng:'Long (Decimal Degrees)',maintenance_period_months:'Maintenance period',last_edited:'Last edited',light_character:'Light Character',note:'Note',light_type:'Light type',reflector:'Reflector',transponder:'Transponder',top_mark:'Top mark',top_chain_length:'Top chain length',top_chain_size:'Top chain size',shackle:'Shackle',rope_length:'Rope length',rope_size:'Rope size',chain_length:'Chain length',chain_size:'chain size',anchor_weight:'Anchor Weight'};
 const APP_TO_DB=Object.fromEntries(Object.entries(DB_TO_APP).map(([k,v])=>[v,k]));
 function dbToApp(row){const r={__id:row.id,__db_id:row.id,__is_outage:!!row.is_outage,__outage_note:row.outage_note||'',__inspection_due_date:row.inspection_due_date||'',__raw:row};Object.entries(DB_TO_APP).forEach(([db,app])=>{r[app]=row[db]??null});return r}
@@ -126,10 +126,50 @@ async function handlePhotos(files){const r=selectedRecord();if(!r||!files?.lengt
 async function deletePhoto(id){const r=selectedRecord();if(!r)return;const data=riData(r);const photo=(data.photos||[]).find(p=>p.id===id);if(!photo)return;if(!confirm('Delete this photo?'))return;try{if(photo.file_path){const {error:storageError}=await sbClient.storage.from(CONFIG.SUPABASE_BUCKET).remove([photo.file_path]);if(storageError)throw storageError}const {error:dbError}=await sbClient.from(CONFIG.SUPABASE_PHOTOS_TABLE).delete().eq('id',id);if(dbError)throw dbError;await loadRIData(r);renderRI()}catch(error){console.error(error);alert('Failed to delete photo: '+(error.message||error))}}
 function editableHeaders(){return HEADERS.filter(h=>!['Last edited'].includes(h))}
 function blankRecord(){const r={__id:null,__db_id:null,__is_outage:false,__outage_note:'',__inspection_due_date:'',__raw:{}};HEADERS.forEach(h=>r[h]=null);return r}
-function openEdit(){const r=selectedRecord();if(!r)return;editMode='edit';if($('editDeleteBtn'))$('editDeleteBtn').style.display='none';$('editModalTitle').textContent='Edit Details — '+(r.Name||'No name recorded');$('editCodeInput').value='';$('editCodeError').style.display='none';$('editCodeBox').style.display='block';$('editFormSection').style.display='none';$('editModal').classList.add('open');document.body.style.overflow='hidden';setTimeout(()=>$('editCodeInput').focus(),50)}
-function openAddNew(){editMode='add';if($('editDeleteBtn'))$('editDeleteBtn').style.display='none';$('editModalTitle').textContent='Add New Navaid';$('editCodeInput').value='';$('editCodeError').style.display='none';$('editCodeBox').style.display='block';$('editFormSection').style.display='none';$('editModal').classList.add('open');document.body.style.overflow='hidden';setTimeout(()=>$('editCodeInput').focus(),50)}
-function closeEdit(){$('editModal').classList.remove('open');document.body.style.overflow=''}
-function unlockEdit(){if($('editCodeInput').value==='ninja'){$('editCodeBox').style.display='none';$('editFormSection').style.display='block';if($('editDeleteBtn'))$('editDeleteBtn').style.display=editMode==='edit'?'inline-flex':'none';renderEditFields()}else{$('editCodeError').style.display='block'}}
+function showEditCodePrompt(){
+  if($('editDeleteBtn'))$('editDeleteBtn').style.display='none';
+  $('editCodeInput').value='';
+  $('editCodeError').style.display='none';
+  $('editCodeBox').style.display='block';
+  $('editFormSection').style.display='none';
+  setTimeout(()=>$('editCodeInput').focus(),50);
+}
+function showEditForm(){
+  $('editCodeBox').style.display='none';
+  $('editFormSection').style.display='block';
+  if($('editDeleteBtn'))$('editDeleteBtn').style.display=editMode==='edit'?'inline-flex':'none';
+  renderEditFields();
+}
+function openEdit(){
+  const r=selectedRecord();
+  if(!r)return;
+  editMode='edit';
+  $('editModalTitle').textContent='Edit Details — '+(r.Name||'No name recorded');
+  $('editModal').classList.add('open');
+  document.body.style.overflow='hidden';
+  if(editAccessGranted)showEditForm();
+  else showEditCodePrompt();
+}
+function openAddNew(){
+  editMode='add';
+  $('editModalTitle').textContent='Add New Navaid';
+  $('editModal').classList.add('open');
+  document.body.style.overflow='hidden';
+  if(editAccessGranted)showEditForm();
+  else showEditCodePrompt();
+}
+function closeEdit(){
+  $('editModal').classList.remove('open');
+  document.body.style.overflow='';
+}
+function unlockEdit(){
+  if($('editCodeInput').value==='ninja'){
+    editAccessGranted=true;
+    showEditForm();
+  }else{
+    $('editCodeError').style.display='block';
+  }
+}
 function uniqueFieldOptions(field, currentValue){
 const current=String(currentValue==='-'?'':currentValue??'').trim();
 const values=[...new Set(state.records.map(r=>String(r[field]??'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
