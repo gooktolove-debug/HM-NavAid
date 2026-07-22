@@ -57,8 +57,18 @@
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script>
-const EMBEDDED_DATA=[];const HEADERS=["Name", "Owner", "Class", "Category", "Type", "Sub type", "Lat (Decimal Degrees)", "Long (Decimal Degrees)", "Maintenance period", "Last edited", "Light Character", "Note", "Light type", "Reflector", "Transponder", "Top mark", "Top chain length", "Top chain size", "Shackle", "Rope length", "Rope size", "Chain length", "chain size", "Anchor Weight"];const CONFIG={SUPABASE_URL:'https://wgwlnutnstrfuiiunlcu.supabase.co',SUPABASE_ANON_KEY:'sb_publishable_iC7kbinoy61_5eQCnrV25Q_OioA7Y1x',SUPABASE_TABLE:'hm_navaids',SUPABASE_LOGS_TABLE:'hm_navaid_logs',SUPABASE_PHOTOS_TABLE:'hm_navaid_photos',SUPABASE_BUCKET:'hm-navaid-images'};const sbClient=supabase.createClient(CONFIG.SUPABASE_URL,CONFIG.SUPABASE_ANON_KEY);const OUTAGE_KEY='hm_navaid_manual_outages_v1',RI_KEY='hm_navaid_repair_inspection_v1',EDIT_KEY='hm_navaid_last_edited_overrides_v1',DETAIL_EDIT_KEY='hm_navaid_detail_edits_v1';let manualOutages=new Set(JSON.parse(localStorage.getItem(OUTAGE_KEY)||'[]'));let riStore=JSON.parse(localStorage.getItem(RI_KEY)||'{}');let editOverrides=JSON.parse(localStorage.getItem(EDIT_KEY)||'{}');let detailEdits=JSON.parse(localStorage.getItem(DETAIL_EDIT_KEY)||'{}');const NOTE_LOG_TYPE='note';let noteStore={};let allNotesCache=[];const state={records:[],filtered:[],scope:'all',owner:'all',classType:'all',outageOnly:false,overdueOnly:false,selectedId:null,markers:{},layerGroup:null,userLocation:null,forwardPlanningDate:null};
-let riEditing={id:null,type:null};let editMode="edit";let editAccessGranted=false;let pendingDetailNoteDeleteId=null;let pinPickMode=false;let pinPickSavedValues=null;
+const EMBEDDED_DATA=[];const HEADERS=["Name", "Owner", "Class", "Category", "Type", "Sub type", "Lat (Decimal Degrees)", "Long (Decimal Degrees)", "Maintenance period", "Last edited", "Light Character", "Note", "Light type", "Reflector", "Transponder", "Top mark", "Top chain length", "Top chain size", "Shackle", "Rope length", "Rope size", "Chain length", "chain size", "Anchor Weight"];const CONFIG={SUPABASE_URL:'https://wgwlnutnstrfuiiunlcu.supabase.co',SUPABASE_ANON_KEY:'sb_publishable_iC7kbinoy61_5eQCnrV25Q_OioA7Y1x',SUPABASE_TABLE:'hm_navaids',SUPABASE_LOGS_TABLE:'hm_navaid_logs',SUPABASE_PHOTOS_TABLE:'hm_navaid_photos',SUPABASE_BUCKET:'hm-navaid-images'};const sbClient=supabase.createClient(CONFIG.SUPABASE_URL,CONFIG.SUPABASE_ANON_KEY);
+// Shared server-side access verification for all protected NavAid actions.
+// No real access code is stored in this HTML file.
+const ACCESS_FUNCTION_URL='https://hjrcnsuzrztaiwnttxnr.supabase.co/functions/v1/verify-access';
+const ACCESS_APP_NAME='navaid';
+const ACCESS_SESSION_KEY='navaidProtectedActionAccess';
+const ACCESS_SESSION_DURATION_MS=8*60*60*1000;
+const ACCESS_MIN_CODE_LENGTH=5;
+function saveProtectedAccessSession(){sessionStorage.setItem(ACCESS_SESSION_KEY,JSON.stringify({granted:true,expiresAt:Date.now()+ACCESS_SESSION_DURATION_MS}))}
+function hasValidProtectedAccessSession(){try{const raw=sessionStorage.getItem(ACCESS_SESSION_KEY);if(!raw)return false;const session=JSON.parse(raw);if(session.granted!==true||typeof session.expiresAt!=='number'||Date.now()>=session.expiresAt){sessionStorage.removeItem(ACCESS_SESSION_KEY);return false}return true}catch(error){sessionStorage.removeItem(ACCESS_SESSION_KEY);return false}}
+async function verifyProtectedAccessCode(code){const normalized=String(code??'').trim();if(normalized.length<ACCESS_MIN_CODE_LENGTH)return{valid:false,message:'Please enter a valid access code.'};const controller=new AbortController();const timeoutId=setTimeout(()=>controller.abort(),10000);try{const response=await fetch(ACCESS_FUNCTION_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({app:ACCESS_APP_NAME,code:normalized}),signal:controller.signal});let result;try{result=await response.json()}catch(error){throw new Error('The server returned an invalid response.')}if(!response.ok||result.valid!==true)return{valid:false,message:result.message||'Incorrect access code.'};saveProtectedAccessSession();return{valid:true,message:'Access granted.'}}finally{clearTimeout(timeoutId)}}const OUTAGE_KEY='hm_navaid_manual_outages_v1',RI_KEY='hm_navaid_repair_inspection_v1',EDIT_KEY='hm_navaid_last_edited_overrides_v1',DETAIL_EDIT_KEY='hm_navaid_detail_edits_v1';let manualOutages=new Set(JSON.parse(localStorage.getItem(OUTAGE_KEY)||'[]'));let riStore=JSON.parse(localStorage.getItem(RI_KEY)||'{}');let editOverrides=JSON.parse(localStorage.getItem(EDIT_KEY)||'{}');let detailEdits=JSON.parse(localStorage.getItem(DETAIL_EDIT_KEY)||'{}');const NOTE_LOG_TYPE='note';let noteStore={};let allNotesCache=[];const state={records:[],filtered:[],scope:'all',owner:'all',classType:'all',outageOnly:false,overdueOnly:false,selectedId:null,markers:{},layerGroup:null,userLocation:null,forwardPlanningDate:null};
+let riEditing={id:null,type:null};let editMode="edit";let editAccessGranted=hasValidProtectedAccessSession();let pendingDetailNoteDeleteId=null;let pinPickMode=false;let pinPickSavedValues=null;
 const DB_TO_APP={name:'Name',owner:'Owner',asset_class:'Class',category:'Category',type:'Type',sub_type:'Sub type',lat:'Lat (Decimal Degrees)',lng:'Long (Decimal Degrees)',maintenance_period_months:'Maintenance period',last_edited:'Last edited',light_character:'Light Character',note:'Note',light_type:'Light type',reflector:'Reflector',transponder:'Transponder',top_mark:'Top mark',top_chain_length:'Top chain length',top_chain_size:'Top chain size',shackle:'Shackle',rope_length:'Rope length',rope_size:'Rope size',chain_length:'Chain length',chain_size:'chain size',anchor_weight:'Anchor Weight'};
 const APP_TO_DB=Object.fromEntries(Object.entries(DB_TO_APP).map(([k,v])=>[v,k]));
 function dbToApp(row){const r={__id:row.id,__db_id:row.id,__is_outage:!!row.is_outage,__outage_note:row.outage_note||'',__inspection_due_date:row.inspection_due_date||'',__raw:row};Object.entries(DB_TO_APP).forEach(([db,app])=>{r[app]=row[db]??null});return r}
@@ -116,22 +126,26 @@ function closeNoteDeleteCodePrompt(){
 }
 function requestDeleteDetailNote(noteId){
   if(!noteId)return;
+  editAccessGranted=editAccessGranted||hasValidProtectedAccessSession();
   if(editAccessGranted){
     deleteDetailNote(noteId);
   }else{
     openNoteDeleteCodePrompt(noteId);
   }
 }
-function confirmNoteDeleteCode(){
+async function confirmNoteDeleteCode(){
   const noteId=pendingDetailNoteDeleteId;
   if(!noteId)return;
-  if($('noteDeleteCodeInput').value==='ninja'){
-    editAccessGranted=true;
-    closeNoteDeleteCodePrompt();
-    deleteDetailNote(noteId);
-  }else{
-    $('noteDeleteCodeError').style.display='block';
-  }
+  const input=$('noteDeleteCodeInput'),button=$('noteDeleteConfirmBtn'),errorEl=$('noteDeleteCodeError');
+  const code=clean(input?.value);
+  errorEl.style.display='block';errorEl.style.color='var(--muted)';errorEl.textContent='Checking access code...';
+  if(input)input.disabled=true;if(button){button.disabled=true;button.textContent='Checking...'}
+  try{
+    const result=await verifyProtectedAccessCode(code);
+    if(!result.valid){errorEl.style.color='#b91c1c';errorEl.textContent=result.message||'Incorrect access code.';if(input){input.value='';input.focus()}return}
+    editAccessGranted=true;closeNoteDeleteCodePrompt();deleteDetailNote(noteId);
+  }catch(error){console.error('Access verification failed:',error);errorEl.style.color='#b91c1c';errorEl.textContent=error.name==='AbortError'?'The request timed out. Please try again.':'Unable to verify access. Please try again.'}
+  finally{if(input)input.disabled=false;if(button){button.disabled=false;button.textContent='Delete'}}
 }
 async function deleteDetailNote(noteId){
   const r=selectedRecord();
@@ -213,6 +227,7 @@ function openEdit(){
   $('editModalTitle').textContent='Edit Details — '+(r.Name||'No name recorded');
   $('editModal').classList.add('open');
   document.body.style.overflow='hidden';
+  editAccessGranted=editAccessGranted||hasValidProtectedAccessSession();
   if(editAccessGranted)showEditForm();
   else showEditCodePrompt();
 }
@@ -221,6 +236,7 @@ function openAddNew(){
   $('editModalTitle').textContent='Add New Navaid';
   $('editModal').classList.add('open');
   document.body.style.overflow='hidden';
+  editAccessGranted=editAccessGranted||hasValidProtectedAccessSession();
   if(editAccessGranted)showEditForm();
   else showEditCodePrompt();
 }
@@ -228,13 +244,17 @@ function closeEdit(){
   $('editModal').classList.remove('open');
   document.body.style.overflow='';
 }
-function unlockEdit(){
-  if($('editCodeInput').value==='ninja'){
-    editAccessGranted=true;
-    showEditForm();
-  }else{
-    $('editCodeError').style.display='block';
-  }
+async function unlockEdit(){
+  const input=$('editCodeInput'),button=$('editUnlockBtn'),errorEl=$('editCodeError');
+  const code=clean(input?.value);
+  errorEl.style.display='block';errorEl.style.color='var(--muted)';errorEl.textContent='Checking access code...';
+  if(input)input.disabled=true;if(button){button.disabled=true;button.textContent='Checking...'}
+  try{
+    const result=await verifyProtectedAccessCode(code);
+    if(!result.valid){errorEl.style.color='#b91c1c';errorEl.textContent=result.message||'Incorrect access code.';if(input){input.value='';input.focus()}return}
+    editAccessGranted=true;errorEl.style.display='none';if(input)input.value='';showEditForm();
+  }catch(error){console.error('Access verification failed:',error);errorEl.style.color='#b91c1c';errorEl.textContent=error.name==='AbortError'?'The request timed out. Please try again.':'Unable to verify access. Please try again.'}
+  finally{if(input)input.disabled=false;if(button){button.disabled=false;button.textContent='Unlock'}}
 }
 function uniqueFieldOptions(field, currentValue){
 const current=String(currentValue==='-'?'':currentValue??'').trim();
