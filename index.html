@@ -119,6 +119,60 @@ body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.20;ba
   #forwardPlanningClearBtn{min-height:44px!important}
 }
 
+
+/* Main board card readability and right-aligned detail controls */
+@media(min-width:561px){
+  .cards .stat{padding:18px 18px 56px!important;min-height:148px}
+  .cards .label{font-size:13px!important;line-height:1.25;font-weight:850!important;color:#aac3d4!important}
+  .cards .value{font-size:34px!important;line-height:1.05;margin-top:7px!important;letter-spacing:-.03em;color:#fff!important}
+  .cards .stat-class{font-size:14px!important;line-height:1.35;margin-top:10px!important;color:#b7cedd!important}
+  .cards .stat-class b{font-size:15px!important;color:#fff!important}
+  .cards .outage{font-size:14px!important;line-height:1.35;margin-top:7px!important;color:#d2e2ec!important}
+  .cards .outage b{font-size:15px!important;font-weight:900!important}
+  .cards .stat>button[data-scope]{position:absolute!important;right:16px!important;bottom:14px!important;left:auto!important;margin:0!important;min-height:32px!important;padding:7px 12px!important;font-size:12px!important}
+}
+@media(max-width:560px){
+  .cards .label{font-size:11px!important;color:#aac3d4!important}
+  .cards .value{font-size:28px!important;color:#fff!important}
+  .cards .stat-class,.cards .outage{font-size:12px!important;line-height:1.35}
+  .cards .stat-class b,.cards .outage b{font-size:13px!important}
+  .cards .stat{padding-bottom:52px!important;position:relative}
+  .cards .stat>button[data-scope]{position:absolute!important;right:12px!important;bottom:11px!important;margin:0!important}
+}
+
+
+/* Mobile header actions: show all controls without horizontal scrolling */
+@media(max-width:900px){
+  .header .actions{
+    display:grid!important;
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    gap:8px!important;
+    width:100%!important;
+    max-width:none!important;
+    margin:14px 0 0!important;
+    padding:0!important;
+    overflow:visible!important;
+    flex-wrap:wrap!important;
+    scrollbar-width:none!important;
+  }
+  .header .actions::-webkit-scrollbar{display:none!important}
+  .header .actions button{
+    width:100%!important;
+    min-width:0!important;
+    min-height:42px!important;
+    padding:9px 7px!important;
+    font-size:11px!important;
+    line-height:1.2!important;
+    white-space:normal!important;
+    text-align:center!important;
+    overflow-wrap:anywhere!important;
+  }
+}
+@media(max-width:380px){
+  .header .actions{gap:6px!important}
+  .header .actions button{padding:8px 5px!important;font-size:10px!important}
+}
+
 </style></head><body><div class="container"><div class="header"><div class="brand-block"><div class="eyebrow"><span class="brand-mark">HM</span><span>AUCKLAND HARBOURMASTER</span></div><h1>NavAid <span>Monitoring Board</span></h1><p>Navigation asset status, inspection planning and field records</p></div><div class="actions"><button id="resetBtn" type="button">Reset Filters</button><button id="fitBtn" type="button">Zoom out to All Pins</button><button id="allNotesBtn" type="button">All Note</button><button id="forwardPlanningBtn" type="button">Forward planning</button><button id="marineChartBtn" type="button">Marine Chart</button><button id="marineOverlayBtn" type="button" title="Toggle nautical chart style overlay on this map">Chart Overlay</button><button id="addNewBtn" type="button">Add New</button><button id="locationBtn" type="button">Current Location</button></div></div><div class="cards" id="statCards"></div><div class="card panel" id="detailsPanel"><div class="panel-head"><div><div class="panel-title" id="detailsTitle">All Navaids</div><div class="box-desc" id="detailsDesc"></div></div><div class="chips"><button class="small filter-red" id="outageOnlyBtn" type="button">Outage only</button><button class="small filter-orange" id="overdueOnlyBtn" type="button">Due inspection only</button></div></div><div class="section-label">Owner / Class Filter</div><div class="chips" id="ownerChips"></div><div class="search-row"><input class="field" id="nameSearch" placeholder="Search Name"><input class="field" id="ownerSearch" placeholder="Search Owner"><input class="field" id="typeSearch" placeholder="Search Type / Sub type"><select class="field" id="classFilter"><option value="">All Classes</option></select></div><div class="note">Due inspection = Last edited + Maintenance period(months) is older than today. Outage, Repair, Inspection, edits and photos are saved to Supabase for the HM NavAid team app.</div></div><div class="main"><div class="card"><div class="box-head"><h2 class="box-title">NavAid Map</h2><div class="box-desc" id="mapDesc"></div></div><div class="box-body"><div class="map-shell"><div id="map"></div><div class="measure-banner" id="measureBanner"><span>Tap/click the map to add measurement points.</span><button class="finish" id="measureFinishBtn" type="button">Finish</button><button id="measureUndoBtn" type="button">Undo</button><button class="clear" id="measureClearBtn" type="button">Clear</button></div><button id="mapFullscreenBtn" class="map-fullscreen-btn" type="button">⛶ Fullscreen</button></div><div class="legend"><div class="legend-item"><span class="dot" style="background:#dc2626"></span> Outage</div><div class="legend-item"><span class="dot" style="background:#f97316"></span> Due inspection</div><div class="legend-item"><span class="dot" style="background:#16a34a"></span> Normal</div></div><div class="table-wrap"><table><thead><tr id="tableHead"></tr></thead><tbody id="tableBody"></tbody></table></div></div></div><div class="card detail-card"><div class="box-head"><div class="detail-head-row"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><button class="small map-detail-back" id="mapDetailBackBtn" type="button">← Back to Map</button><h2 class="box-title">Detail Information</h2></div><button class="small btn-edit-top" id="editDetailsBtn" type="button">Edit</button></div></div><div class="box-body"><div id="detailEmpty" class="muted">Select a pin or table row to view details.</div><div id="detailContent" style="display:none"><div class="badges" id="detailBadges"></div><div class="detail-title" id="detailTitle">-</div><div class="detail-sub" id="detailSubtitle"></div><div class="detail-actions"><button class="small danger" id="detailOutageBtn" type="button">Mark as Outage</button><button class="small btn-ri" id="repairInspectionBtn" type="button">Repair / Inspection</button></div><div class="detail-notes" id="detailNotesSection"><div class="detail-notes-head"><div class="detail-notes-title">Notes</div><div class="detail-notes-count" id="detailNotesCount">0 entries</div></div><div class="detail-notes-add"><textarea class="field" id="detailNoteText" placeholder="Add a note for this NavAid..."></textarea><button id="detailNoteAddBtn" type="button">Add<br>Note</button></div><div class="detail-notes-quick" id="detailNotesQuick"><button class="detail-note-quick-btn" type="button" data-quick-note="Light Witnessed">Light Witnessed</button></div><div class="detail-notes-list" id="detailNotesList"><div class="muted">Select a pin to view notes.</div></div></div><div class="detail-grid" id="detailGrid"></div></div></div></div></div></div>
 <div class="modal" id="riModal"><div class="modal-card"><div class="modal-head"><div><div class="modal-title" id="riModalTitle">Repair / Inspection</div><div class="box-desc" id="riModalSub"></div></div><button class="small danger" id="riCloseBtn" type="button"><span class="desktop-text">Close</span><span class="mobile-text">← Back</span></button></div><div class="modal-body"><div class="photo-top"><div class="panel-head" style="border:0;margin:0;padding:0"><div><div class="ri-title">Uploaded Photos</div><div class="box-desc">Newest uploaded photo appears at the far left.</div></div><div class="photo-upload-actions"><label class="small take-photo-btn" style="border:1px solid #cbd5e1;border-radius:999px;padding:7px 10px;cursor:pointer;background:#fff">Take Photo<input id="photoCameraInput" type="file" accept="image/*" capture="environment" style="display:none"></label><label class="small" style="border:1px solid #cbd5e1;border-radius:999px;padding:7px 10px;cursor:pointer;background:#fff">Upload Photo<input id="photoInput" type="file" accept="image/*" multiple style="display:none"></label></div></div><div class="photo-row" id="photoRow"><div class="muted">No photos uploaded yet.</div></div></div><div class="ri-grid"><div class="ri-section repair-section"><div class="ri-title">Repair</div><div class="ri-add"><textarea class="field" id="repairNote" placeholder="Note..."></textarea><input class="field" id="repairInitial" placeholder="Initial"><button class="primary" id="repairAdd" type="button">Add</button></div><div class="history" id="repairHistory"></div></div><div class="ri-section inspection-section"><div class="ri-title">Inspection</div><div class="ri-add"><textarea class="field" id="inspectionNote" placeholder="Note..."></textarea><input class="field" id="inspectionInitial" placeholder="Initial"><button class="primary" id="inspectionAdd" type="button">Add</button></div><div class="history" id="inspectionHistory"></div></div></div></div></div></div>
 <div class="modal" id="editModal"><div class="modal-card"><div class="modal-head"><div><div class="modal-title" id="editModalTitle">Edit Details</div><div class="box-desc">Access code is required. Last edited, Status, and Inspection Due Date are not editable.</div></div><div class="modal-head-actions"><button class="small btn-delete-navaid" id="editDeleteBtn" type="button" style="display:none">Delete</button><button class="small danger" id="editCloseBtn" type="button"><span class="desktop-text">Close</span><span class="mobile-text">← Back</span></button></div></div><div class="modal-body"><div class="code-box" id="editCodeBox"><div class="section-label" style="margin-top:0">Access code</div><div class="modal-actions"><input class="field" id="editCodeInput" type="password" placeholder="Enter access code" style="max-width:260px"><button class="primary" id="editUnlockBtn" type="button">Unlock</button></div><div class="error-text" id="editCodeError">Incorrect access code.</div></div><div id="editFormSection" style="display:none"><div class="edit-grid" id="editFields"></div><div class="modal-actions" style="margin-top:14px"><button class="primary" id="editSaveBtn" type="button">Save Changes</button><button id="editCancelBtn" type="button">Cancel</button></div></div></div></div></div>
