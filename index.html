@@ -277,11 +277,16 @@ return Number(result.toFixed(8))
 }
 function appEditsToDb(edits){const out={};Object.entries(edits).forEach(([app,val])=>{
 const db=APP_TO_DB[app];if(!db)return;
-let v=val===''?null:val;
+let v=typeof val==='string'?val.trim():val;
+if(v==='')v=null;
 if(db==='lat'||db==='lng')v=parseCoordinateInput(v,db==='lat'?'lat':'lng');
-else if(['top_chain_length','top_chain_size','shackle','rope_length','rope_size','chain_length','chain_size','anchor_weight'].includes(db))v=(v===null||v==='')?null:Number(v);
-else if(db==='maintenance_period_months')v=(v===null||v==='')?null:parseInt(v,10);
-out[db]=Number.isNaN(v)?null:v});return out}
+else if(db==='maintenance_period_months'){
+  if(v===null)v=null;
+  else{const months=Number(v);if(!Number.isFinite(months))throw new Error('Maintenance period must be a number.');v=Math.trunc(months)}
+}
+// All equipment/detail fields remain text. Values such as 12 mm, 2 x 5 m, D-shackle,
+// 1.5 t and mixed letters/numbers must not be converted with Number().
+out[db]=v});return out}
 function addMonthsISODate(date,months){const d=new Date(date);if(isNaN(d))return null;d.setMonth(d.getMonth()+Number(months||0));return d.toISOString().slice(0,10)}
 function jsq(v){return String(v??'').replace(/\\/g,'\\\\').replace(/'/g,"\\'")}
 const $=id=>document.getElementById(id);const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));const clean=v=>String(v??'').trim();function ownerOf(r){return clean(r.Owner)||'Unknown'}function classOf(r){return clean(r.Class)||'Unknown'}function catOf(r){return clean(r.Category)||'Uncategorised'}function latOf(r){const raw=r['Lat (Decimal Degrees)'];if(raw===null||raw===undefined||String(raw).trim()==='')return null;const v=Number(raw);return Number.isFinite(v)?v:null}function lonOf(r){const raw=r['Long (Decimal Degrees)'];if(raw===null||raw===undefined||String(raw).trim()==='')return null;const v=Number(raw);return Number.isFinite(v)?v:null}function hasGps(r){return latOf(r)!==null&&lonOf(r)!==null}function recordKey(r){return r.__id}function assetKey(r){return [clean(r.Name),ownerOf(r),clean(r['Lat (Decimal Degrees)']),clean(r['Long (Decimal Degrees)'])].join('|')}function outageKey(r){return assetKey(r)}function selectedRecord(){return state.filtered.find(x=>x.__id===state.selectedId)||null}function effectiveLastEdited(r){return editOverrides[assetKey(r)]||r['Last edited']}function formatNowNZ(){return new Date().toLocaleString('en-NZ',{day:'2-digit',month:'2-digit',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true}).replace(/\s/g,' ')}function updateLastEdited(r){editOverrides[assetKey(r)]=formatNowNZ();r['Last edited']=editOverrides[assetKey(r)];localStorage.setItem(EDIT_KEY,JSON.stringify(editOverrides))}function displayValue(r,h){return h==='Last edited'?(effectiveLastEdited(r)??'-'):(r[h]??'-')}function applyDetailEdits(r){const edits=detailEdits[recordKey(r)];if(edits)Object.entries(edits).forEach(([k,v])=>{r[k]=v===''?null:v})}function parseDateNZ(v){if(!v)return null;const s=String(v).trim();let m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:,?\s*(\d{1,2}):(\d{2})\s*(am|pm)?)?/i);if(m){let d=+m[1],mo=+m[2]-1,y=+m[3],h=+(m[4]||0),mi=+(m[5]||0),ap=(m[6]||'').toLowerCase();if(ap==='pm'&&h<12)h+=12;if(ap==='am'&&h===12)h=0;let dt=new Date(y,mo,d,h,mi);return isNaN(dt)?null:dt}let dt=new Date(s);return isNaN(dt)?null:dt}function addMonths(d,m){let x=new Date(d);x.setMonth(x.getMonth()+Number(m||0));return x}function dueDate(r){let last=parseDateNZ(effectiveLastEdited(r));let p=Number(r['Maintenance period']);if(!last||!Number.isFinite(p)||p<=0)return null;return addMonths(last,p)}function isOverdue(r){let d=dueDate(r);return !!d&&new Date()>d}function isDueByPlanningDate(r){if(!state.forwardPlanningDate)return false;let d=dueDate(r);if(!d)return false;let target=new Date(state.forwardPlanningDate+'T23:59:59');return d<=target}function planningFilterActive(){return !!state.forwardPlanningDate}function isOutage(r){return !!r.__is_outage||manualOutages.has(outageKey(r))}function isInactive(r){return !!r.__is_inactive}function markerStatusColor(r){if(isInactive(r))return '#374151';if(isOutage(r))return '#dc2626';if(isOverdue(r)||isDueByPlanningDate(r))return '#f97316';return '#16a34a'}function statusText(r){return isInactive(r)?'Inactive':isOutage(r)?'Outage':(isOverdue(r)||isDueByPlanningDate(r))?'Due inspection':'Normal'}
@@ -551,7 +556,77 @@ function coordinateDdmHtml(h,value){const kind=h.startsWith('Lat')?'lat':'lng';c
 function readDdmCoordinate(kind){const degEl=document.querySelector(`[data-coordinate-deg="${kind}"]`),minEl=document.querySelector(`[data-coordinate-min="${kind}"]`);if(!degEl||!minEl)return null;const degRaw=clean(degEl.value),minRaw=clean(minEl.value);if(!degRaw&&!minRaw)return '';if(!degRaw||!minRaw)throw new Error(`Please enter both ${kind==='lat'?'latitude':'longitude'} degrees and decimal minutes.`);const deg=Number(degRaw),min=Number(minRaw),limit=kind==='lat'?90:180;if(!Number.isFinite(deg)||deg<0||deg>limit||!Number.isInteger(deg))throw new Error(`${kind==='lat'?'Latitude':'Longitude'} degrees must be a whole number from 0 to ${limit}.`);if(!Number.isFinite(min)||min<0||min>=60)throw new Error(`${kind==='lat'?'Latitude':'Longitude'} decimal minutes must be from 0 to less than 60.`);if(deg===limit&&min>0)throw new Error(`${kind==='lat'?'Latitude':'Longitude'} cannot exceed ${limit} degrees.`);const decimal=deg+(min/60);return Number((kind==='lat'?-decimal:decimal).toFixed(8))}
 function setDdmCoordinate(kind,value){const degEl=document.querySelector(`[data-coordinate-deg="${kind}"]`),minEl=document.querySelector(`[data-coordinate-min="${kind}"]`);if(!degEl||!minEl)return;const parts=decimalToDdmParts(value,kind);degEl.value=parts.deg;minEl.value=parts.min}
 function renderEditFields(){const r=editMode==='add'?blankRecord():selectedRecord();if(!r)return;const dropdownFields=new Set(['Owner','Class','Category','Type','Sub type']);$('editFields').innerHTML=editableHeaders().map(h=>{const val=displayValue(r,h);if(h==='Lat (Decimal Degrees)'||h==='Long (Decimal Degrees)')return coordinateDdmHtml(h,val==='-'?'':val);if(dropdownFields.has(h))return `<div class="edit-field"><label>${esc(h)}</label>${h==='Category'?categorySelectHtml(val):selectHtml(h,val)}</div>`;const tag=(String(val).length>55||['Note','Light Character'].includes(h))?'textarea':'input';return `<div class="edit-field"><label>${esc(h)}</label>${tag==='textarea'?`<textarea class="field" data-edit-field="${esc(h)}">${esc(val==='-'?'':val)}</textarea>`:`<input class="field" data-edit-field="${esc(h)}" value="${esc(val==='-'?'':val)}">`}</div>`}).join('')}
-async function saveEdit(){const edits={};document.querySelectorAll('[data-edit-field]').forEach(el=>{edits[el.dataset.editField]=el.value});let dbUpdate;try{edits['Lat (Decimal Degrees)']=readDdmCoordinate('lat');edits['Long (Decimal Degrees)']=readDdmCoordinate('lng');dbUpdate=appEditsToDb(edits)}catch(error){alert(error.message||error);return}try{if(editMode==='add'){const {data,error}=await sbClient.from(CONFIG.SUPABASE_TABLE).insert(dbUpdate).select('*').single();if(error)throw error;const nr=dbToApp(data);state.records.push(nr);state.selectedId=nr.__id;buildClassFilter();closeEdit();renderAll(true);if(hasGps(nr))map.setView([latOf(nr),lonOf(nr)],15);else alert('New Navaid has been saved to Supabase. It will not appear as a pin until valid Lat/Long values are added.')}else{const r=selectedRecord();if(!r)return;const {error}=await sbClient.from(CONFIG.SUPABASE_TABLE).update(dbUpdate).eq('id',r.__db_id);if(error)throw error;Object.entries(edits).forEach(([k,v])=>{r[k]=v===''?null:v});if(dbUpdate.lat!==undefined)r['Lat (Decimal Degrees)']=dbUpdate.lat;if(dbUpdate.lng!==undefined)r['Long (Decimal Degrees)']=dbUpdate.lng;closeEdit();renderAll(false)}}catch(error){console.error(error);alert((editMode==='add'?'Failed to add new Navaid: ':'Failed to save detail changes: ')+(error.message||error))}}
+async function saveEdit(){
+  const edits={};
+  document.querySelectorAll('[data-edit-field]').forEach(el=>{edits[el.dataset.editField]=el.value});
+  let dbUpdate;
+  try{
+    edits['Lat (Decimal Degrees)']=readDdmCoordinate('lat');
+    edits['Long (Decimal Degrees)']=readDdmCoordinate('lng');
+    dbUpdate=appEditsToDb(edits);
+  }catch(error){alert(error.message||error);return}
+
+  const saveBtn=$('editSaveBtn');
+  const originalText=saveBtn?.textContent||'Save Changes';
+  if(saveBtn){saveBtn.disabled=true;saveBtn.textContent='Saving...'}
+
+  try{
+    if(editMode==='add'){
+      const {data,error}=await sbClient.from(CONFIG.SUPABASE_TABLE).insert(dbUpdate).select('*').single();
+      if(error)throw error;
+      if(!data?.id)throw new Error('Supabase did not return the newly saved record. Check INSERT/SELECT RLS policies.');
+      const nr=dbToApp(data);
+      state.records.push(nr);state.selectedId=nr.__id;buildClassFilter();closeEdit();renderAll(true);
+      if(hasGps(nr))map.setView([latOf(nr),lonOf(nr)],15);
+      else alert('New Navaid has been saved to Supabase. It will not appear as a pin until valid Lat/Long values are added.');
+      return;
+    }
+
+    const r=selectedRecord();
+    if(!r?.__db_id)throw new Error('The selected NavAid does not have a valid Supabase record ID.');
+    const originalRecord={...r};
+
+    // Preserve the original app behaviour: show the edited values immediately.
+    Object.entries(edits).forEach(([k,v])=>{r[k]=v===''?null:v});
+    if(dbUpdate.lat!==undefined)r['Lat (Decimal Degrees)']=dbUpdate.lat;
+    if(dbUpdate.lng!==undefined)r['Long (Decimal Degrees)']=dbUpdate.lng;
+    closeEdit();renderAll(false);
+
+    // Save, then independently re-read the same row to prove persistence.
+    const {error:updateError}=await sbClient.from(CONFIG.SUPABASE_TABLE).update(dbUpdate).eq('id',r.__db_id);
+    if(updateError)throw updateError;
+
+    const {data:serverRow,error:readError}=await sbClient.from(CONFIG.SUPABASE_TABLE).select('*').eq('id',r.__db_id).single();
+    if(readError)throw readError;
+
+    const failedFields=[];
+    Object.entries(dbUpdate).forEach(([dbField,intended])=>{
+      const actual=serverRow?.[dbField]??null;
+      const wanted=intended??null;
+      const same=(typeof wanted==='number')?Number(actual)===Number(wanted):String(actual??'')===String(wanted??'');
+      if(!same)failedFields.push(dbField);
+    });
+
+    if(failedFields.length){
+      // Keep the immediate display, but make it explicit that refreshing will lose it.
+      console.error('Supabase persistence verification failed',{id:r.__db_id,failedFields,dbUpdate,serverRow});
+      alert('The values are visible on this screen, but Supabase did not persist them. They will disappear after refresh.\n\nFields not saved: '+failedFields.join(', ')+'\n\nThe hm_navaids UPDATE Row Level Security policy must be fixed.');
+      return;
+    }
+
+    // Replace the optimistic copy with the authoritative server row.
+    const saved=dbToApp(serverRow);
+    const index=state.records.findIndex(x=>String(x.__id)===String(r.__id));
+    if(index>=0)state.records[index]=saved;
+    state.selectedId=saved.__id;
+    buildClassFilter();renderAll(false);
+  }catch(error){
+    console.error('NavAid save failed:',error);
+    alert('The values may be visible only on this screen, but permanent save failed: '+(error.message||error));
+  }finally{
+    if(saveBtn){saveBtn.disabled=false;saveBtn.textContent=originalText}
+  }
+}
 
 function currentEditFormValues(){const values={};document.querySelectorAll('[data-edit-field]').forEach(el=>{values[el.dataset.editField]=el.value});values['Lat (Decimal Degrees)']=readDdmCoordinate('lat');values['Long (Decimal Degrees)']=readDdmCoordinate('lng');return values}
 function setEditFormValues(values){if(!values)return;document.querySelectorAll('[data-edit-field]').forEach(el=>{if(Object.prototype.hasOwnProperty.call(values,el.dataset.editField))el.value=values[el.dataset.editField]??''});if(Object.prototype.hasOwnProperty.call(values,'Lat (Decimal Degrees)'))setDdmCoordinate('lat',values['Lat (Decimal Degrees)']);if(Object.prototype.hasOwnProperty.call(values,'Long (Decimal Degrees)'))setDdmCoordinate('lng',values['Long (Decimal Degrees)'])}
