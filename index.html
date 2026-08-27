@@ -234,7 +234,7 @@ body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.20;ba
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script>
-const EMBEDDED_DATA=[];const HEADERS=["Name", "Owner", "Class", "Category", "Type", "Sub type", "Lat (Decimal Degrees)", "Long (Decimal Degrees)", "Maintenance period", "Last edited", "Light Character", "Note", "Light type", "Reflector", "Transponder", "Top mark", "Top chain length", "Top chain size", "Shackle", "Rope length", "Rope size", "Chain length", "chain size", "Anchor Weight"];const CONFIG={SUPABASE_URL:'https://wgwlnutnstrfuiiunlcu.supabase.co',SUPABASE_ANON_KEY:'sb_publishable_iC7kbinoy61_5eQCnrV25Q_OioA7Y1x',SUPABASE_TABLE:'hm_navaids',SUPABASE_LOGS_TABLE:'hm_navaid_logs',SUPABASE_PHOTOS_TABLE:'hm_navaid_photos',SUPABASE_BUCKET:'hm-navaid-images'};const sbClient=supabase.createClient(CONFIG.SUPABASE_URL,CONFIG.SUPABASE_ANON_KEY);
+const EMBEDDED_DATA=[];const HEADERS=["Name", "Owner", "Class", "Category", "Type", "Sub type", "Lat (Decimal Degrees)", "Long (Decimal Degrees)", "Maintenance period", "Last edited", "Light Character", "Note", "Light type", "Reflector", "Transponder", "Top mark", "Top chain length", "Top chain size", "Shackle", "Rope length", "Rope size", "Chain length", "chain size", "Anchor Weight", "Depth"];const CONFIG={SUPABASE_URL:'https://wgwlnutnstrfuiiunlcu.supabase.co',SUPABASE_ANON_KEY:'sb_publishable_iC7kbinoy61_5eQCnrV25Q_OioA7Y1x',SUPABASE_TABLE:'hm_navaids',SUPABASE_LOGS_TABLE:'hm_navaid_logs',SUPABASE_PHOTOS_TABLE:'hm_navaid_photos',SUPABASE_BUCKET:'hm-navaid-images'};const sbClient=supabase.createClient(CONFIG.SUPABASE_URL,CONFIG.SUPABASE_ANON_KEY);
 // Shared server-side access verification for all protected NavAid actions.
 // No real access code is stored in this HTML file.
 const ACCESS_FUNCTION_URL='https://hjrcnsuzrztaiwnttxnr.supabase.co/functions/v1/verify-access';
@@ -253,7 +253,7 @@ function openNavaidUserGate(){$('userGate').classList.remove('hidden');document.
 function restoreNavaidUser(){currentNavaidUser='';$('userName').textContent='-';$('userAvatar').textContent='-';$('userSession').classList.remove('visitor');openNavaidUserGate()}
 function applyRiInitialMode(){const auto=activeNavaidInitial();['repairInitial','inspectionInitial'].forEach(id=>{const el=$(id);if(!el)return;el.readOnly=!!auto;el.classList.toggle('auto-initial',!!auto);if(auto)el.value=auto;else if(isNavaidVisitor()&&NAVAID_USERS.includes(clean(el.value)))el.value='';el.placeholder=auto?'Logged user':'Initial'});document.querySelectorAll('.logged-initial-note').forEach(x=>x.remove())}
 let riEditing={id:null,type:null};let editMode="edit";let editAccessGranted=hasValidProtectedAccessSession();let pendingDetailNoteDeleteId=null;let pinPickMode=false;let pinPickSavedValues=null;
-const DB_TO_APP={name:'Name',owner:'Owner',asset_class:'Class',category:'Category',type:'Type',sub_type:'Sub type',lat:'Lat (Decimal Degrees)',lng:'Long (Decimal Degrees)',maintenance_period_months:'Maintenance period',last_edited:'Last edited',light_character:'Light Character',note:'Note',light_type:'Light type',reflector:'Reflector',transponder:'Transponder',top_mark:'Top mark',top_chain_length:'Top chain length',top_chain_size:'Top chain size',shackle:'Shackle',rope_length:'Rope length',rope_size:'Rope size',chain_length:'Chain length',chain_size:'chain size',anchor_weight:'Anchor Weight'};
+const DB_TO_APP={name:'Name',owner:'Owner',asset_class:'Class',category:'Category',type:'Type',sub_type:'Sub type',lat:'Lat (Decimal Degrees)',lng:'Long (Decimal Degrees)',maintenance_period_months:'Maintenance period',last_edited:'Last edited',light_character:'Light Character',note:'Note',light_type:'Light type',reflector:'Reflector',transponder:'Transponder',top_mark:'Top mark',top_chain_length:'Top chain length',top_chain_size:'Top chain size',shackle:'Shackle',rope_length:'Rope length',rope_size:'Rope size',chain_length:'Chain length',chain_size:'chain size',anchor_weight:'Anchor Weight',depth:'Depth'};
 const APP_TO_DB=Object.fromEntries(Object.entries(DB_TO_APP).map(([k,v])=>[v,k]));
 function dbToApp(row){const r={__id:row.id,__db_id:row.id,__is_outage:!!row.is_outage,__is_inactive:!!row.is_inactive,__outage_note:row.outage_note||'',__inspection_due_date:row.inspection_due_date||'',__raw:row};Object.entries(DB_TO_APP).forEach(([db,app])=>{r[app]=row[db]??null});return r}
 function parseCoordinateInput(value,kind){
@@ -284,8 +284,6 @@ else if(db==='maintenance_period_months'){
   if(v===null)v=null;
   else{const months=Number(v);if(!Number.isFinite(months))throw new Error('Maintenance period must be a number.');v=Math.trunc(months)}
 }
-// All equipment/detail fields remain text. Values such as 12 mm, 2 x 5 m, D-shackle,
-// 1.5 t and mixed letters/numbers must not be converted with Number().
 out[db]=v});return out}
 function addMonthsISODate(date,months){const d=new Date(date);if(isNaN(d))return null;d.setMonth(d.getMonth()+Number(months||0));return d.toISOString().slice(0,10)}
 function jsq(v){return String(v??'').replace(/\\/g,'\\\\').replace(/'/g,"\\'")}
@@ -565,11 +563,9 @@ async function saveEdit(){
     edits['Long (Decimal Degrees)']=readDdmCoordinate('lng');
     dbUpdate=appEditsToDb(edits);
   }catch(error){alert(error.message||error);return}
-
   const saveBtn=$('editSaveBtn');
   const originalText=saveBtn?.textContent||'Save Changes';
   if(saveBtn){saveBtn.disabled=true;saveBtn.textContent='Saving...'}
-
   try{
     if(editMode==='add'){
       const {data,error}=await sbClient.from(CONFIG.SUPABASE_TABLE).insert(dbUpdate).select('*').single();
@@ -581,24 +577,16 @@ async function saveEdit(){
       else alert('New Navaid has been saved to Supabase. It will not appear as a pin until valid Lat/Long values are added.');
       return;
     }
-
     const r=selectedRecord();
     if(!r?.__db_id)throw new Error('The selected NavAid does not have a valid Supabase record ID.');
-    const originalRecord={...r};
-
-    // Preserve the original app behaviour: show the edited values immediately.
     Object.entries(edits).forEach(([k,v])=>{r[k]=v===''?null:v});
     if(dbUpdate.lat!==undefined)r['Lat (Decimal Degrees)']=dbUpdate.lat;
     if(dbUpdate.lng!==undefined)r['Long (Decimal Degrees)']=dbUpdate.lng;
     closeEdit();renderAll(false);
-
-    // Save, then independently re-read the same row to prove persistence.
     const {error:updateError}=await sbClient.from(CONFIG.SUPABASE_TABLE).update(dbUpdate).eq('id',r.__db_id);
     if(updateError)throw updateError;
-
     const {data:serverRow,error:readError}=await sbClient.from(CONFIG.SUPABASE_TABLE).select('*').eq('id',r.__db_id).single();
     if(readError)throw readError;
-
     const failedFields=[];
     Object.entries(dbUpdate).forEach(([dbField,intended])=>{
       const actual=serverRow?.[dbField]??null;
@@ -606,15 +594,11 @@ async function saveEdit(){
       const same=(typeof wanted==='number')?Number(actual)===Number(wanted):String(actual??'')===String(wanted??'');
       if(!same)failedFields.push(dbField);
     });
-
     if(failedFields.length){
-      // Keep the immediate display, but make it explicit that refreshing will lose it.
       console.error('Supabase persistence verification failed',{id:r.__db_id,failedFields,dbUpdate,serverRow});
-      alert('The values are visible on this screen, but Supabase did not persist them. They will disappear after refresh.\n\nFields not saved: '+failedFields.join(', ')+'\n\nThe hm_navaids UPDATE Row Level Security policy must be fixed.');
+      alert('The values are visible on this screen, but Supabase did not persist them. They will disappear after refresh.\n\nFields not saved: '+failedFields.join(', '));
       return;
     }
-
-    // Replace the optimistic copy with the authoritative server row.
     const saved=dbToApp(serverRow);
     const index=state.records.findIndex(x=>String(x.__id)===String(r.__id));
     if(index>=0)state.records[index]=saved;
