@@ -403,9 +403,11 @@ const map=L.map('map',{preferCanvas:true,tapTolerance:25}).setView([-36.84,174.7
 
 /* ===== Distance measurement in metres ===== */
 const measureState={active:false,finished:false,points:[],line:null,segments:[],vertices:[],labels:[],control:null,button:null,readout:null};
-function formatMetres(value){
+function formatDistance(value){
   const metres=Math.max(0,Number(value)||0);
-  return metres<1000?`${Math.round(metres).toLocaleString('en-NZ')} m`:`${metres.toLocaleString('en-NZ',{maximumFractionDigits:0})} m`;
+  if(metres<=500)return `${Math.round(metres).toLocaleString('en-NZ')} m`;
+  const nauticalMiles=metres/1852;
+  return `${nauticalMiles.toLocaleString('en-NZ',{minimumFractionDigits:2,maximumFractionDigits:2})} NM`;
 }
 function measuredTotal(){
   let total=0;
@@ -416,14 +418,14 @@ function setMeasureReadout(extra=''){
   if(!measureState.readout)return;
   const count=measureState.points.length,total=measuredTotal();
   measureState.readout.classList.toggle('open',measureState.active||count>0);
-  measureState.readout.innerHTML=`<strong>${formatMetres(total)}</strong><span>${extra||(count?`${count} point${count===1?'':'s'} · cumulative distance`:'Select Measure, then tap the map')}</span>`;
+  measureState.readout.innerHTML=`<strong>${formatDistance(total)}</strong><span>${extra||(count?`${count} point${count===1?'':'s'} · cumulative distance`:'Select Measure, then tap the map')}</span>`;
 }
 function setMeasureUi(){
   document.getElementById('map')?.classList.toggle('measure-crosshair',measureState.active);
   document.getElementById('measureBanner')?.classList.toggle('open',measureState.active);
   measureState.button?.classList.toggle('active',measureState.active);
   measureState.button?.setAttribute('aria-pressed',measureState.active?'true':'false');
-  measureState.button?.setAttribute('title',measureState.active?'Finish distance measurement':'Measure distance in metres');
+  measureState.button?.setAttribute('title',measureState.active?'Finish distance measurement':'Measure distance in m / NM');
   setMeasureReadout(measureState.finished?'Measurement finished':'');
 }
 function clearMeasureLayers(){
@@ -443,7 +445,7 @@ function rebuildMeasurement(){
     measureState.vertices.push(vertex);
     const cumulative=pts.slice(1,i+1).reduce((sum,cur,j)=>sum+map.distance(pts[j],cur),0);
     const label=L.tooltip({permanent:true,direction:'top',offset:[0,-8],className:'measure-distance-label '+(i===0?'measure-start-label':'')})
-      .setLatLng(p).setContent(i===0?'Start':formatMetres(cumulative)).addTo(map);
+      .setLatLng(p).setContent(i===0?'Start':formatDistance(cumulative)).addTo(map);
     measureState.labels.push(label);
   });
   setMeasureUi();
@@ -473,7 +475,7 @@ const MeasureControl=L.Control.extend({
   options:{position:'topleft'},
   onAdd(){
     const wrap=L.DomUtil.create('div','leaflet-control measure-control');
-    const btn=L.DomUtil.create('button','',wrap);btn.type='button';btn.innerHTML='↔';btn.setAttribute('aria-label','Measure distance in metres');btn.setAttribute('aria-pressed','false');btn.title='Measure distance in metres';
+    const btn=L.DomUtil.create('button','',wrap);btn.type='button';btn.innerHTML='↔';btn.setAttribute('aria-label','Measure distance in m or nautical miles');btn.setAttribute('aria-pressed','false');btn.title='Measure distance in m / NM';
     const readout=L.DomUtil.create('div','measure-readout',wrap);
     L.DomEvent.disableClickPropagation(wrap);L.DomEvent.disableScrollPropagation(wrap);L.DomEvent.on(btn,'click',L.DomEvent.stop).on(btn,'click',startMeasurement);
     measureState.button=btn;measureState.readout=readout;setMeasureReadout();return wrap;
