@@ -275,7 +275,7 @@ body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.20;ba
 const EMBEDDED_DATA=[];const HEADERS=["Name", "Owner", "Class", "Category", "Type", "Sub type", "Lat (Decimal Degrees)", "Long (Decimal Degrees)", "Maintenance period", "Last edited", "Light Character", "Note", "Light type", "Reflector", "Transponder", "Top mark", "Top chain length", "Top chain size", "Shackle", "Rope length", "Rope size", "Chain length", "chain size", "Anchor Weight", "Depth"];const CONFIG={SUPABASE_URL:'https://wgwlnutnstrfuiiunlcu.supabase.co',SUPABASE_ANON_KEY:'sb_publishable_iC7kbinoy61_5eQCnrV25Q_OioA7Y1x',SUPABASE_TABLE:'hm_navaids',SUPABASE_LOGS_TABLE:'hm_navaid_logs',SUPABASE_PHOTOS_TABLE:'hm_navaid_photos',SUPABASE_BUCKET:'hm-navaid-images'};const sbClient=supabase.createClient(CONFIG.SUPABASE_URL,CONFIG.SUPABASE_ANON_KEY);
 // Shared server-side access verification for all protected NavAid actions.
 // No real access code is stored in this HTML file.
-const ACCESS_FUNCTION_URL='https://hjrcnsuzrztaiwnttxnr.supabase.co/functions/v1/verify-access';
+const ACCESS_FUNCTION_URL='https://wgwlnutnstrfuiiunlcu.supabase.co/functions/v1/hyper-responder';
 const ACCESS_APP_NAME='navaid';
 const ACCESS_SESSION_KEY='navaidProtectedActionAccess';
 const ACCESS_SESSION_DURATION_MS=8*60*60*1000;
